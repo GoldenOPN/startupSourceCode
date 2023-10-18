@@ -1,0 +1,148 @@
+#include <iostream>
+#include <vector>
+#include <random>
+#include <numeric>
+#include <limits>
+#include <chrono>
+#include <thread>
+
+using namespace std;
+
+class IMU
+{
+public:
+ IMU()
+					: gyro_bias{0.0, 0.0, 0.0},
+							accel_bias{0.0, 0.0, 0.0},
+							accel_scale{1.0, 1.0, 1.0},
+							gyro_scale{1.0, 1.0, 1.0} {}
+
+ // Simulated gyroscope data collection (bias and scale factor compensation not applied)
+ vector<double> collect_gyro_data()
+ {
+		return {random_uniform(-1.0, 1.0), random_uniform(-1.0, 1.0), random_uniform(-1.0, 1.0)};
+ }
+
+ // Simulated accelerometer data collection (bias and scale factor compensation not applied)
+ vector<double> collect_accel_data()
+ {
+		return {0.0, 0.0, 9.81}; // Simulated gravity (bias-free)
+ }
+
+ void calibrate_gyroscope(int num_samples = 1000)
+ {
+		cout << "Calibrating gyroscope..." << endl;
+
+		vector<vector<double>> gyro_samples;
+		for (int i = 0; i < num_samples; ++i)
+		{
+			gyro_samples.push_back(collect_gyro_data());
+		}
+
+		calibrate_bias_and_offset(gyro_samples, gyro_bias);
+		calibrate_scale_factor(gyro_samples, gyro_scale);
+
+		print_calibration_results("Gyroscope", gyro_bias, gyro_scale);
+ }
+
+ void calibrate_accelerometer(int num_samples = 1000)
+ {
+		cout << "Calibrating accelerometer..." << endl;
+
+		vector<vector<double>> accel_samples;
+		for (int i = 0; i < num_samples; ++i)
+		{
+			accel_samples.push_back(collect_accel_data());
+		}
+
+		calibrate_bias_and_offset(accel_samples, accel_bias);
+		calibrate_scale_factor(accel_samples, accel_scale);
+
+		print_calibration_results("Accelerometer", accel_bias, accel_scale);
+ }
+
+private:
+ vector<double> gyro_bias;
+ vector<double> accel_bias;
+ vector<double> gyro_scale;
+ vector<double> accel_scale;
+
+ double random_uniform(double min, double max)
+ {
+		static random_device rd;
+		static mt19937 gen(rd());
+		uniform_real_distribution<double> dist(min, max);
+		return dist(gen);
+ }
+
+ void calibrate_bias_and_offset(const vector<vector<double>> &samples, vector<double> &bias)
+ {
+		for (int i = 0; i < 3; ++i)
+		{
+			double sum = 0.0;
+			for (const auto &sample : samples)
+			{
+				sum += sample[i];
+			}
+			bias[i] = sum / samples.size();
+		}
+ }
+
+ void calibrate_scale_factor(const vector<vector<double>> &samples, vector<double> &scale)
+ {
+		vector<double> max_values(3, -numeric_limits<double>::max());
+		vector<double> min_values(3, numeric_limits<double>::max());
+
+		// Find maximum and minimum values along each axis
+		for (const auto &sample : samples)
+		{
+			for (int i = 0; i < 3; ++i)
+			{
+				max_values[i] = max(max_values[i], sample[i]);
+				min_values[i] = min(min_values[i], sample[i]);
+			}
+		}
+
+		// Calculate scale factors
+		for (int i = 0; i < 3; ++i)
+		{
+			scale[i] = (max_values[i] - min_values[i]) / 2.0; // Scale to [-1, 1]
+		}
+ }
+
+ void print_calibration_results(const string &sensor_name, const vector<double> &bias, const vector<double> &scale)
+ {
+		cout << sensor_name << " bias: ";
+		for (double value : bias)
+		{
+			cout << value << " ";
+		}
+		cout << endl;
+
+		cout << sensor_name << " scale factors: ";
+		for (double value : scale)
+		{
+			cout << value << " ";
+		}
+		cout << endl;
+ }
+};
+
+int main()
+{
+ IMU imu;
+
+ // Calibrate the gyroscope
+ imu.calibrate_gyroscope();
+
+ // Calibrate the accelerometer
+ imu.calibrate_accelerometer();
+
+ return 0;
+}
+
+// TAKE THIS KEY NOTES WHEN DOING ACTUAL PRODUCTION:
+// in the actual code, you will take all the (x,y,z) measurements at each orientation; then average all of them
+// calibration is only done once
+// then after you have gotten the magnetometer, accelerometer and gyroscope bias. you can input it in a software (name: magneto) that will do the proper calibration
+// if the magnitude of the acceleration isnt 1 or anything higher than one then the accelerometer needs calibration
